@@ -4,6 +4,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import dotenv from 'dotenv';
 import ShipStationClient from './shipstation-client.js';
+import { startLifecycleWatchdog, wrapWithActivityBump } from './watchdog.js';
 
 dotenv.config();
 
@@ -36,7 +37,7 @@ class ShipStationMCPServer {
   }
 
   setupHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+    this.server.setRequestHandler(ListToolsRequestSchema, wrapWithActivityBump(async () => {
       return {
         tools: [
           // Shipment tools
@@ -1226,9 +1227,9 @@ class ShipStationMCPServer {
           }
         ]
       };
-    });
+    }));
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler(CallToolRequestSchema, wrapWithActivityBump(async (request) => {
       const { name, arguments: args } = request.params;
 
       try {
@@ -1507,10 +1508,11 @@ class ShipStationMCPServer {
           isError: true
         };
       }
-    });
+    }));
   }
 
   async run() {
+    startLifecycleWatchdog();
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error('ShipStation MCP server running on stdio');
