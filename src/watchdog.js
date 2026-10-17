@@ -148,6 +148,18 @@ export function idleTimeoutSeconds(env = process.env) {
 }
 
 /**
+ * True when this process is mcp-mux's one shared child.
+ *
+ * Under mcp-mux a single long-lived process serves every client, so the
+ * per-session idle-timeout exit is wrong -- it would kill the shared server
+ * every quiet 30 minutes. mcp-mux sets MCP_SHARED_MUX_CHILD=1 to mark that
+ * child. Read at call time, never cached.
+ */
+export function sharedMuxChild(env = process.env) {
+  return env.MCP_SHARED_MUX_CHILD === '1';
+}
+
+/**
  * Pure decision function: should the watchdog terminate this process?
  *
  * Parent-death exit (ppid === 1 and we did not start as PID 1's child)
@@ -164,18 +176,6 @@ export function idleTimeoutSeconds(env = process.env) {
  * pre-mechanism-3 caller/test -- gets today's exact idle behavior. Parent
  * death and the in-flight gate are unaffected by it.
  */
-/**
- * True when this process is mcp-mux's one shared child.
- *
- * Under mcp-mux a single long-lived process serves every client, so the
- * per-session idle-timeout exit is wrong -- it would kill the shared server
- * every quiet 30 minutes. mcp-mux sets MCP_SHARED_MUX_CHILD=1 to mark that
- * child. Read at call time, never cached.
- */
-export function sharedMuxChild(env = process.env) {
-  return env.MCP_SHARED_MUX_CHILD === '1';
-}
-
 export function shouldExit({
   ppid,
   startPpid,
