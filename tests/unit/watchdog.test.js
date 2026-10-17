@@ -29,6 +29,7 @@ import {
   isTransportAlive,
   _setTransportStateForTests,
   _TRANSPORT_FRESH_WINDOW_MS,
+  sharedMuxChild,
 } from '../../src/watchdog.js';
 
 describe('lifecycle watchdog -- decision function', () => {
@@ -333,6 +334,105 @@ describe('lifecycle watchdog -- startup', () => {
     });
     assert.ok(timer, 'should return a timer handle');
     assert.ok(logs.some((l) => l.includes('armed')));
+    _stopForTests();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MCP_SHARED_MUX_CHILD marker: skip ONLY the idle exit
+// ---------------------------------------------------------------------------
+
+describe('lifecycle watchdog -- sharedMuxChild marker', () => {
+  test('true only for exact "1"', () => {
+    assert.strictEqual(sharedMuxChild({ MCP_SHARED_MUX_CHILD: '1' }), true);
+    assert.strictEqual(sharedMuxChild({ MCP_SHARED_MUX_CHILD: '0' }), false);
+    assert.strictEqual(sharedMuxChild({ MCP_SHARED_MUX_CHILD: 'true' }), false);
+    assert.strictEqual(sharedMuxChild({ MCP_SHARED_MUX_CHILD: '' }), false);
+    assert.strictEqual(sharedMuxChild({}), false);
+  });
+
+  test('marker skips the idle exit', () => {
+    assert.strictEqual(
+      shouldExit({
+        ppid: 4242,
+        startPpid: 4242,
+        activeRequests: 0,
+        lastActivityMono: 0,
+        nowMono: 1_801_000,
+        idleTimeoutSec: 1800,
+        env: { MCP_SHARED_MUX_CHILD: '1' },
+      }),
+      false,
+    );
+  });
+
+  test('marker still kills on parent death (ppid==1)', () => {
+    assert.strictEqual(
+      shouldExit({
+        ppid: 1,
+        startPpid: 4242,
+        activeRequests: 0,
+        lastActivityMono: 1_000_000,
+        nowMono: 1_000_000,
+        idleTimeoutSec: 1800,
+        env: { MCP_SHARED_MUX_CHILD: '1' },
+      }),
+      true,
+    );
+  });
+
+  test('marker still honors the in-flight gate (never a mid-flight kill)', () => {
+    assert.strictEqual(
+      shouldExit({
+        ppid: 4242,
+        startPpid: 4242,
+        activeRequests: 1,
+        lastActivityMono: 0,
+        nowMono: 9_999_999_999,
+        idleTimeoutSec: 1800,
+        env: { MCP_SHARED_MUX_CHILD: '1' },
+      }),
+      false,
+    );
+  });
+
+  for (const val of [undefined, '0', 'true']) {
+    test(`idle exit still fires when marker is ${JSON.stringify(val)}`, () => {
+      const env = val === undefined ? {} : { MCP_SHARED_MUX_CHILD: val };
+      assert.strictEqual(
+        shouldExit({
+          ppid: 4242,
+          startPpid: 4242,
+          activeRequests: 0,
+          lastActivityMono: 0,
+          nowMono: 1_801_000,
+          idleTimeoutSec: 1800,
+          env,
+        }),
+        true,
+      );
+    });
+  }
+
+  test('start logs the disabled line only with the marker', () => {
+    const logs = [];
+    const timer = startLifecycleWatchdog({
+      env: { MCP_SHARED_MUX_CHILD: '1' },
+      intervalMs: 1000,
+      log: (m) => logs.push(m),
+    });
+    assert.ok(timer);
+    assert.ok(logs.some((l) => l.includes('idle kill disabled')));
+    _stopForTests();
+
+    const logs2 = [];
+    const timer2 = startLifecycleWatchdog({
+      env: {},
+      intervalMs: 1000,
+      log: (m) => logs2.push(m),
+    });
+    assert.ok(timer2);
+    assert.ok(!logs2.some((l) => l.includes('idle kill disabled')));
     _stopForTests();
   });
 });
