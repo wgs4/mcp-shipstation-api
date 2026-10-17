@@ -176,6 +176,7 @@ To use this server with an MCP-compatible AI assistant (like Claude Desktop), ad
 - `SHIPSTATION_V1_API_URL` - Custom ShipStation v1 API base URL (optional, defaults to `https://ssapi.shipstation.com`)
 - `MCP_IDLE_TIMEOUT_SECONDS` - Idle-exit threshold for the lifecycle watchdog (optional, default `1800` = 30 min, capped at 24h). The watchdog also self-exits within ~20s if the parent process dies (prevents orphan accumulation on shared MCP hosts).
 - `MCP_DISABLE_WATCHDOG` - Set to `1` to disable the lifecycle watchdog (debug only; leaves orphan-process risk in place).
+- `MCP_SHARED_MUX_CHILD` - Set to `1` (by mcp-mux) to skip ONLY the idle-timeout exit; absent or any other value leaves the idle kill on. The parent-death exit is unaffected.
 
 ⚠️ **Security Note**: Never commit your `.env` file to git. The `.env` file contains sensitive API keys and should only exist locally or in secure deployment environments.
 
